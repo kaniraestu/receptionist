@@ -18,7 +18,7 @@
   "type": "module",
   "main": "index.ts",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "",
     "dev": "nodemon --delay 2 src/index.ts",
     "dev:server": "tsx watch src/server.ts"
   },
@@ -29,6 +29,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "dotenv": "^18.0.8",
     "express": "^5.2.1"
   }
 }

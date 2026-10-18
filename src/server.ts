@@ -1,6 +1,13 @@
 import express from 'express'
 import path from 'path'
 import fs from 'fs';
+import 'dotenv/config'
+
+const mainDir = process.env.mainDir
+
+if (!mainDir) {
+  throw new Error('Missing required environment variable: mainDir')
+}
 
 function generateIndex(folderPath: string) {
   const files = fs.readdirSync(folderPath).filter(f => f !== 'index.html');
@@ -22,7 +29,7 @@ function generateIndex(folderPath: string) {
 
 const app = express()
 
-const externalPath = path.resolve("E:/mv/ix/whatsapp/nika/stickers/");
+const externalPath = path.resolve(mainDir);
 console.log(externalPath)
 app.use('/static', express.static(externalPath));
 app.use(express.json());
