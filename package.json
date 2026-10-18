@@ -1,35 +1,29 @@
 {
   "name": "receptionist",
-  "version": "0.0.1",
-  "description": "tagger",
-  "keywords": [
-    "tagger"
-  ],
-  "homepage": "https://github.com/raihaneong/receptionist#readme",
-  "bugs": {
-    "url": "https://github.com/raihaneong/receptionist/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/raihaneong/receptionist.git"
-  },
-  "license": "ISC",
-  "author": "rhn",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "index.ts",
   "scripts": {
-    "test": "",
-    "dev": "nodemon --delay 2 src/index.ts",
-    "dev:server": "tsx watch src/server.ts"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/node": "^22.20.2",
-    "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "dotenv": "^18.0.8",
-    "express": "^5.2.1"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@rolldown/plugin-babel": "^0.2.3",
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "oxlint": "^1.81.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0"
   }
 }
