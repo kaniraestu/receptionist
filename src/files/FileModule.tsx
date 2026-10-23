@@ -58,6 +58,7 @@ function parseRemoteFilesResponse(value: unknown): RemoteFilesResponse {
 export function FileModule() {
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState<ViewMode>('list')
+  const [currentPath, setCurrentPath] = useState<string[]>([])
   const [remoteEntries, setRemoteEntries] = useState<RemoteEntry[]>([])
   const [remoteRoot, setRemoteRoot] = useState('')
   const [remotePage, setRemotePage] = useState(1)
@@ -66,6 +67,7 @@ export function FileModule() {
   const [isRefreshingRemote, setIsRefreshingRemote] = useState(true)
   const [remoteError, setRemoteError] = useState('')
   const remoteRequest = useRef<AbortController | null>(null)
+  const relativePath = currentPath.join('/')
 
   const displayedRemoteEntries = useMemo(() => remoteEntries.filter((entry) =>
     entry.name.toLowerCase().includes(query.trim().toLowerCase()),
@@ -96,10 +98,11 @@ export function FileModule() {
     return pages
   }, [remotePage, remoteTotalPages])
 
-  const fetchRemoteFiles = useCallback(async (page: number, refresh: boolean, signal: AbortSignal) => {
+  const fetchRemoteFiles = useCallback(async (page: number, path: string, refresh: boolean, signal: AbortSignal) => {
     const url = new URL('/files', 'http://localhost:3001')
     url.searchParams.set('page', String(page))
     url.searchParams.set('limit', String(PAGE_SIZE))
+    if (path) url.searchParams.set('path', path)
     if (refresh) url.searchParams.set('refresh', 'true')
 
     const response = await fetch(url, { signal })
@@ -123,7 +126,7 @@ export function FileModule() {
 
     const load = async () => {
       try {
-        const payload = await fetchRemoteFiles(remotePage, false, controller.signal)
+        const payload = await fetchRemoteFiles(remotePage, relativePath, false, controller.signal)
         if (!controller.signal.aborted) applyRemoteFiles(payload)
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -142,7 +145,7 @@ export function FileModule() {
       remoteRequest.current?.abort()
       remoteRequest.current = null
     }
-  }, [fetchRemoteFiles, remotePage])
+  }, [fetchRemoteFiles, relativePath, remotePage])
 
   const refreshRemoteFiles = () => {
     remoteRequest.current?.abort()
@@ -153,7 +156,7 @@ export function FileModule() {
 
     const refresh = async () => {
       try {
-        const payload = await fetchRemoteFiles(remotePage, true, controller.signal)
+        const payload = await fetchRemoteFiles(remotePage, relativePath, true, controller.signal)
         if (!controller.signal.aborted) applyRemoteFiles(payload)
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -175,12 +178,28 @@ export function FileModule() {
     setRemotePage(page)
   }
 
+  const openFolder = (name: string) => {
+    setCurrentPath((path) => [...path, name])
+    setRemotePage(1)
+    setQuery('')
+    setRemoteError('')
+    setIsRefreshingRemote(true)
+  }
+
+  const navigateToPath = (path: string[]) => {
+    setCurrentPath(path)
+    setRemotePage(1)
+    setQuery('')
+    setRemoteError('')
+    setIsRefreshingRemote(true)
+  }
+
   return (
     <main className="local-files-app">
       <header className="local-files-topbar">
         <div className="local-files-brand">
           <span className="local-files-brand-mark"><FileIcon name="folder" size={18} /></span>
-          <span>folio<span>.</span></span>
+          <span>Receptionist<span>.</span></span>
         </div>
         <label className="local-files-search">
           <FileIcon name="search" size={17} />
@@ -192,7 +211,21 @@ export function FileModule() {
       <section className="local-files-content">
         <div className="local-files-heading">
           <div>
-            <h1>Files</h1>
+            <nav className="local-files-breadcrumbs" aria-label="Folder path">
+              <button onClick={() => navigateToPath([])}>Files</button>
+              {currentPath.map((folder, index) => (
+                <span key={`${folder}-${index}`}>
+                  <span className="local-files-crumb-separator">/</span>
+                  <button
+                    aria-current={index === currentPath.length - 1 ? 'page' : undefined}
+                    onClick={() => navigateToPath(currentPath.slice(0, index + 1))}
+                  >
+                    {folder}
+                  </button>
+                </span>
+              ))}
+            </nav>
+            <h1>{currentPath.at(-1) ?? 'Files'}</h1>
             <p>{remoteTotal} {remoteTotal === 1 ? 'item' : 'items'}</p>
           </div>
         </div>
@@ -228,8 +261,8 @@ export function FileModule() {
           ) : (
             <>
               {viewMode === 'list'
-                ? <FileList entries={displayedRemoteEntries} />
-                : <FileGrid entries={displayedRemoteEntries} />}
+                ? <FileList entries={displayedRemoteEntries} path={relativePath} onOpenFolder={openFolder} />
+                : <FileGrid entries={displayedRemoteEntries} path={relativePath} onOpenFolder={openFolder} />}
 
               <div className="local-files-remote-pagination">
                 <button disabled={!canGoPrev} onClick={() => changeRemotePage(Math.max(1, remotePage - 1))}>Previous</button>

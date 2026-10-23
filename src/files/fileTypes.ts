@@ -15,8 +15,9 @@ export type RemoteFilesResponse = {
   totalPages: number
 }
 
-export function getFileUrl(name: string): string {
+export function getFileUrl(name: string, path: string): string {
   const url = new URL('/file', 'http://localhost:3001')
   url.searchParams.set('name', name)
+  if (path) url.searchParams.set('path', path)
   return url.toString()
 }

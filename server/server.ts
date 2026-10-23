@@ -16,45 +16,74 @@ type FileEntry = {
   thumbnailUrl?: string
 }
 
-let cachedFiles: FileEntry[] = []
-let cachedAt = 0
+const fileCache = new Map<string, { files: FileEntry[]; cachedAt: number }>()
+
+function isWithinDirectory(rootPath: string, candidatePath: string) {
+  const relativePath = path.relative(rootPath, candidatePath)
+  return relativePath === '' || (!relativePath.startsWith(`..${path.sep}`) && relativePath !== '..' && !path.isAbsolute(relativePath))
+}
+
+async function resolveDirectory(relativePath: string) {
+  const rootPath = await realpath(rootDir)
+  const directoryPath = await realpath(path.resolve(rootPath, relativePath || '.'))
+  if (!isWithinDirectory(rootPath, directoryPath) || !(await stat(directoryPath)).isDirectory()) {
+    throw new Error('Directory not found.')
+  }
+  return { rootPath, directoryPath }
+}
+
+async function resolveFile(relativePath: string, name: string) {
+  if (!name || name === '.' || name === '..' || path.basename(name) !== name) {
+    throw new Error('File not found.')
+  }
+
+  const { rootPath, directoryPath } = await resolveDirectory(relativePath)
+  const filePath = await realpath(path.join(directoryPath, name))
+  if (!isWithinDirectory(rootPath, filePath) || path.dirname(filePath) !== directoryPath || !(await stat(filePath)).isFile()) {
+    throw new Error('File not found.')
+  }
+  return filePath
+}
 
 function isImageFile(name: string) {
   const extension = path.extname(name).toLowerCase()
   return ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'].includes(extension)
 }
 
-async function loadFilesFromDisk(): Promise<FileEntry[]> {
-  const entries = await readdir(rootDir, { withFileTypes: true })
+async function loadFilesFromDisk(relativePath: string): Promise<FileEntry[]> {
+  const { directoryPath } = await resolveDirectory(relativePath)
+  const entries = await readdir(directoryPath, { withFileTypes: true })
   const files: FileEntry[] = await Promise.all(
     entries.map(async (entry): Promise<FileEntry> => {
-      const fullPath = path.join(rootDir, entry.name)
+      const fullPath = path.join(directoryPath, entry.name)
       const metadata = await stat(fullPath)
       const shouldUseThumb = !entry.isDirectory() && isImageFile(entry.name)
+      const thumbnailUrl = new URL(`/thumb?file=${encodeURIComponent(entry.name)}`, `http://localhost:${port}`)
+      if (relativePath) thumbnailUrl.searchParams.set('path', relativePath)
 
       return {
         name: entry.name,
         kind: entry.isDirectory() ? 'folder' : 'file',
         size: metadata.size,
         modified: metadata.mtime.toISOString(),
-        thumbnailUrl: shouldUseThumb ? `http://localhost:${port}/thumb?file=${encodeURIComponent(entry.name)}` : undefined,
+        thumbnailUrl: shouldUseThumb ? thumbnailUrl.toString() : undefined,
       }
     }),
   )
 
   const sortedFiles = files.sort((a, b) => a.name.localeCompare(b.name))
-  cachedFiles = sortedFiles
-  cachedAt = Date.now()
+  fileCache.set(relativePath, { files: sortedFiles, cachedAt: Date.now() })
   return sortedFiles
 }
 
-async function getFiles(forceRefresh = false): Promise<FileEntry[]> {
+async function getFiles(relativePath: string, forceRefresh = false): Promise<FileEntry[]> {
   const now = Date.now()
-  if (forceRefresh || now - cachedAt > CACHE_TTL_MS || cachedFiles.length === 0) {
-    return loadFilesFromDisk()
+  const cached = fileCache.get(relativePath)
+  if (forceRefresh || !cached || now - cached.cachedAt > CACHE_TTL_MS) {
+    return loadFilesFromDisk(relativePath)
   }
 
-  return cachedFiles
+  return cached.files
 }
 
 const app = express()
@@ -82,9 +111,9 @@ app.get('/', (_req, res) => {
 
 app.get('/thumb', async (req, res) => {
   try {
+    const relativePath = typeof req.query.path === 'string' ? req.query.path : ''
     const rawName = typeof req.query.file === 'string' ? req.query.file : ''
-    const safeName = path.basename(rawName)
-    const source = path.join(rootDir, safeName)
+    const source = await resolveFile(relativePath, rawName)
 
     const image = await sharp(source)
       .resize(180, 180, { fit: 'inside', withoutEnlargement: true })
@@ -104,18 +133,9 @@ app.get('/thumb', async (req, res) => {
 
 app.get('/file', async (req, res) => {
   try {
+    const relativePath = typeof req.query.path === 'string' ? req.query.path : ''
     const name = typeof req.query.name === 'string' ? req.query.name : ''
-    if (!name || name === '.' || name === '..' || path.basename(name) !== name) {
-      res.sendStatus(404)
-      return
-    }
-
-    const rootPath = await realpath(rootDir)
-    const filePath = await realpath(path.join(rootPath, name))
-    if (path.dirname(filePath) !== rootPath || !(await stat(filePath)).isFile()) {
-      res.sendStatus(404)
-      return
-    }
+    const filePath = await resolveFile(relativePath, name)
 
     res.sendFile(filePath, (error) => {
       if (error && !res.headersSent) res.sendStatus(404)
@@ -130,8 +150,9 @@ app.get('/files', async (req, res) => {
     const page = Math.max(1, Number(req.query.page ?? 1))
     const limit = Math.max(1, Math.min(100, Number(req.query.limit ?? 20)))
     const forceRefresh = req.query.refresh === 'true'
+    const relativePath = typeof req.query.path === 'string' ? req.query.path : ''
 
-    const sortedFiles = await getFiles(forceRefresh)
+    const sortedFiles = await getFiles(relativePath, forceRefresh)
     const total = sortedFiles.length
     const totalPages = Math.max(1, Math.ceil(total / limit))
     const currentPage = Math.min(page, totalPages)

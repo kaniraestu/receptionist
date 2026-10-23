@@ -5,7 +5,11 @@ function formatSize(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
 }
 
-export function FileList({ entries }: { entries: RemoteEntry[] }) {
+export function FileList({ entries, path, onOpenFolder }: {
+  entries: RemoteEntry[]
+  path: string
+  onOpenFolder: (name: string) => void
+}) {
   return (
     <ul className="local-files-remote-list">
       {entries.map((entry) => {
@@ -29,10 +33,14 @@ export function FileList({ entries }: { entries: RemoteEntry[] }) {
         return (
           <li key={entry.name}>
             {entry.kind === 'file' ? (
-              <a className="local-files-list-link" href={getFileUrl(entry.name)} target="_blank" rel="noopener noreferrer">
+              <a className="local-files-list-link" href={getFileUrl(entry.name, path)} target="_blank" rel="noopener noreferrer">
                 {contents}
               </a>
-            ) : contents}
+            ) : (
+              <button className="local-files-list-link" type="button" onClick={() => onOpenFolder(entry.name)}>
+                {contents}
+              </button>
+            )}
           </li>
         )
       })}
