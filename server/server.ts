@@ -1,6 +1,6 @@
 import express from 'express'
 import 'dotenv/config'
-import { readdir, stat } from 'node:fs/promises'
+import { readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
 
@@ -99,6 +99,29 @@ app.get('/thumb', async (req, res) => {
       ok: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     })
+  }
+})
+
+app.get('/file', async (req, res) => {
+  try {
+    const name = typeof req.query.name === 'string' ? req.query.name : ''
+    if (!name || name === '.' || name === '..' || path.basename(name) !== name) {
+      res.sendStatus(404)
+      return
+    }
+
+    const rootPath = await realpath(rootDir)
+    const filePath = await realpath(path.join(rootPath, name))
+    if (path.dirname(filePath) !== rootPath || !(await stat(filePath)).isFile()) {
+      res.sendStatus(404)
+      return
+    }
+
+    res.sendFile(filePath, (error) => {
+      if (error && !res.headersSent) res.sendStatus(404)
+    })
+  } catch {
+    res.sendStatus(404)
   }
 })
 
