@@ -1339,6 +1339,16 @@ button {
   margin-left: auto;
 }
 
+.local-files-error {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #f1c4c7;
+  border-radius: 6px;
+  background: #fff5f5;
+  color: #a23840;
+  font-size: 12px;
+}
+
 .local-files-remote-pagination {
   display: flex;
   align-items: center;
