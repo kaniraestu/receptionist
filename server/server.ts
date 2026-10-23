@@ -1,10 +1,12 @@
 import express from 'express'
-import 'dotenv/config'
+import dotenv from 'dotenv'
 import { readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import sharp from 'sharp'
 
-const rootDir = process.env.ROOT_DIR ?? process.cwd()
+dotenv.config({ path: '.env.development' });
+
+const rootDir = process.env.ROOT_DIR?.trim() ?? ''
 const CACHE_TTL_MS = 10_000
 const port = Number(process.env.PORT ?? 3001)
 
@@ -97,6 +99,15 @@ app.use((req, res, next) => {
     return
   }
 
+  next()
+})
+app.use((_req, res, next) => {
+  if (!rootDir) {
+    return res.status(500).json({
+      ok: false,
+      error: 'ROOT_DIR is not configured. Set it in .env.development.',
+    })
+  }
   next()
 })
 app.locals.rootDir = rootDir
